@@ -1,0 +1,215 @@
+---
+title: "Replicação de Luo et al."
+author: "Damares Cavalcante"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  html_notebook:
+    theme: readable
+    fig_width: 7
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(openintro)
+library(tidyverse)
+library(tidymodels)
+library(gridExtra)
+library(pscl)
+library(boot)
+library(broom)
+theme_set(theme_bw())
+```
+
+```{r}
+container = read_csv(here::here("data/geral/sar_benchmark_tps.csv"),
+                   col_types = cols(
+                      .default = col_double(),
+                      hora = col_character(),
+                      kernel = col_character()
+                    ) 
+) %>% janitor::clean_names()
+glimpse(container_1)
+```
+
+```{r}
+original = container %>% 
+  select(kernel, containers, tps) %>% 
+  filter(kernel == "original") %>% 
+  group_by(containers, kernel) 
+
+original
+```
+
+
+
+```{r}
+original %>% 
+  ggplot(aes(x = containers, y = tps)) +
+  geom_line(color = "red",  alpha = 0.2) +
+  geom_point(color = "red", alpha = 0.5) + 
+  labs(
+    title = "Ocorrência média de TPS na criação de containers no ambiente original",
+    x = "Nº de Containers",
+    y = "Média de Transações por segundo (TPS)"
+  )
+
+ggsave("TPS_Original.png", dpi = 300)
+```
+# Observando a variação de TPS no container-IMA
+
+```{r}
+modificado = container %>% 
+  select(kernel, containers, tps) %>% 
+  filter(kernel == "modificado") %>% 
+  group_by(containers, kernel) 
+
+modificado
+```
+
+```{r}
+modificado %>% 
+  ggplot(aes(x = containers, y = tps)) +
+  geom_line(color = "blue", alpha = 0.2) +
+  geom_point(color = "steelblue", alpha = 0.5) + 
+  labs(
+    title = "Ocorrência média de TPS na criação de containers no ambiente modificado",
+    x = "Nº de Containers",
+    y = "Média de Transações por segundo (TPS)"
+  )
+
+ggsave("TPS_Modificado.png", dpi = 300)
+```
+
+
+```{r}
+modificado = container %>% 
+  select(kernel, containers, tps) %>% 
+  filter(kernel == "modificado") %>% 
+  group_by(containers, kernel) 
+
+modificado
+```
+
+```{r}
+geral = container %>% 
+  #filter(kernel == "original") %>% 
+  select(kernel, containers, tps) %>% 
+  group_by(kernel, containers) %>% 
+  summarise(media_tps = mean(tps), .groups = "drop") 
+
+geral
+```
+
+```{r}
+geral %>% 
+  ggplot(aes(x = containers, y = media_tps, color = kernel)) +
+  geom_line() +
+  geom_point(size = 5) + 
+  labs(
+    title = "Comparando TPS no ambiente original e no container-IMA",
+    x = "Container",
+    y = "Transações por segundo (TPS)"
+  )
+
+ggsave("Comparação_TPS.png", dpi = 300)
+```
+
+# Inferência Estatística
+
+## Ambiente original
+
+```{r}
+
+calc_media = container 
+
+theta_original <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(kernel, containers) %>% 
+        summarise(media_tps = mean(tps), .groups = "drop")
+    g = agrupado %>% filter(kernel == "original") %>% pull(media_tps)
+    #p = agrupado %>% filter(Curso == "FPCC") %>% pull(media_impacto)
+    #g - p
+    g
+}
+
+theta_original(calc_media, i = 1:NROW(calc_media))
+```
+
+```{r}
+ci_original = boot(data = calc_media,
+           statistic = theta_original,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci_original
+#>>>>>>> 44ab36d92c9add9e8d10a67ef1c736358dcbbab4
+```
+
+## Container-IMA
+
+```{r}
+
+calc_media_modificado = container 
+
+theta_modificado <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(kernel, containers) %>% 
+        summarise(media_tps = mean(tps), .groups = "drop")
+    g = agrupado %>% filter(kernel == "modificado") %>% pull(media_tps)
+    #p = agrupado %>% filter(Curso == "FPCC") %>% pull(media_impacto)
+    #g - p
+    g
+}
+
+theta_modificado(calc_media_modificado, i = 1:NROW(calc_media_modificado))
+```
+
+```{r}
+ci_modificado = boot(data = calc_media_modificado,
+           statistic = theta_modificado,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci_modificado
+#>>>>>>> 44ab36d92c9add9e8d10a67ef1c736358dcbbab4
+```
+
+```{r}
+ci_modificado %>% 
+  #filter(stac[] != "(Intercept)") %>% 
+  ggplot(aes(x = c(1,25,50,100), y = statistic, ymin = conf.low, ymax = conf.high)) +
+  geom_linerange() + 
+  geom_point() + 
+  coord_flip() + 
+  labs(
+    title = "Intervalo de confiança para o ambiente original",
+    x = "Nº Containers",
+    y = "Intervalo de Confiança"
+  )
+ggsave("IC_Original.png", dpi = 300)
+```
+
+```{r}
+ci_original %>% 
+  #filter(stac[] != "(Intercept)") %>% 
+  ggplot(aes(x = c(1,25,50,100), y = statistic, ymin = conf.low, ymax = conf.high)) +
+  geom_linerange() + 
+  geom_point() + 
+  coord_flip() + 
+  #scale_x_continuous(limits = c(1,100))
+  labs(
+    title = "Intervalo de confiança para o ambiente com container-IMA",
+    x = "Nº Containers",
+    y = "Intervalo de Confiança"
+  )
+ggsave("IC_Modificado.png", dpi = 300)
+```
