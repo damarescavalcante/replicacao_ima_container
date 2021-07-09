@@ -31,7 +31,7 @@ container = read_csv(here::here("data/geral/sar_benchmark_tps.csv"),
                       kernel = col_character()
                     ) 
 ) %>% janitor::clean_names()
-glimpse(container_1)
+glimpse(container)
 ```
 
 ```{r}
@@ -81,16 +81,6 @@ modificado %>%
   )
 
 ggsave("TPS_Modificado.png", dpi = 300)
-```
-
-
-```{r}
-modificado = container %>% 
-  select(kernel, containers, tps) %>% 
-  filter(kernel == "modificado") %>% 
-  group_by(containers, kernel) 
-
-modificado
 ```
 
 ```{r}
@@ -150,6 +140,20 @@ ci_original = boot(data = calc_media,
 ci_original
 #>>>>>>> 44ab36d92c9add9e8d10a67ef1c736358dcbbab4
 ```
+```{r}
+ci_original %>% 
+  #filter(stac[] != "(Intercept)") %>% 
+  ggplot(aes(x = c(1,25,50,100), y = statistic, ymin = conf.low, ymax = conf.high)) +
+  geom_linerange() + 
+  geom_point() + 
+  coord_flip() + 
+  labs(
+    title = "Intervalo de confiança para o ambiente original",
+    x = "Nº Containers",
+    y = "Intervalo de Confiança"
+  )
+ggsave("IC_Original.png", dpi = 300)
+```
 
 ## Container-IMA
 
@@ -185,21 +189,6 @@ ci_modificado
 
 ```{r}
 ci_modificado %>% 
-  #filter(stac[] != "(Intercept)") %>% 
-  ggplot(aes(x = c(1,25,50,100), y = statistic, ymin = conf.low, ymax = conf.high)) +
-  geom_linerange() + 
-  geom_point() + 
-  coord_flip() + 
-  labs(
-    title = "Intervalo de confiança para o ambiente original",
-    x = "Nº Containers",
-    y = "Intervalo de Confiança"
-  )
-ggsave("IC_Original.png", dpi = 300)
-```
-
-```{r}
-ci_original %>% 
   #filter(stac[] != "(Intercept)") %>% 
   ggplot(aes(x = c(1,25,50,100), y = statistic, ymin = conf.low, ymax = conf.high)) +
   geom_linerange() + 
